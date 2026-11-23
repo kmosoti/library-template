@@ -1,0 +1,37 @@
+# Canonical module-qualified public API, trait-derive, and impl-member surface for `crates/quota-core`
+# Checked mechanically by `cargo xtask check-api-surface [--base <ref>]`.
+# Exhaustive enum variant additions, required trait items, associated type changes, and signature/derive mutations are treated as SemVer-breaking.
+mod bucket::#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)] pub struct TokenBucket
+mod bucket::impl TokenBucket::pub const fn capacity(&self) -> Capacity
+mod bucket::impl TokenBucket::pub const fn last_ns(&self) -> u64
+mod bucket::impl TokenBucket::pub const fn new(capacity: Capacity, rate: RatePerSec, initial_ns: u64) -> Self
+mod bucket::impl TokenBucket::pub const fn rate(&self) -> RatePerSec
+mod bucket::impl TokenBucket::pub fn available_at(&self, cost: u64, now_ns: u64) -> Result<u64, QuotaError>
+mod bucket::impl TokenBucket::pub fn available_remaining(&self, now_ns: u64) -> Result<Remaining, QuotaError>
+mod bucket::impl TokenBucket::pub fn available_tokens(&self, now_ns: u64) -> Result<u64, QuotaError>
+mod bucket::impl TokenBucket::pub fn try_acquire(&mut self, cost: u64, now_ns: u64) -> Result<Decision, QuotaError>
+mod bucket::pub type TokenBucketQuota = TokenBucket
+mod error::#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)] pub enum QuotaError
+mod error::enum QuotaError::ArithmeticOverflow
+mod error::enum QuotaError::ClockRegression { last_ns: u64, now_ns: u64 }
+mod error::enum QuotaError::CostExceedsCapacity { requested: u64, capacity: u64 }
+mod error::enum QuotaError::ZeroCapacity
+mod error::enum QuotaError::ZeroRate
+mod error::impl core::error::Error for QuotaError
+mod error::impl fmt::Display for QuotaError
+mod error::impl fmt::Display for QuotaError::fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+mod types::#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)] pub enum Decision
+mod types::#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)] pub struct Capacity
+mod types::#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)] pub struct RatePerSec
+mod types::#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)] pub struct Remaining
+mod types::enum Decision::Allowed { remaining: Remaining }
+mod types::enum Decision::Denied { available: Remaining, retry_at_ns: u64 }
+mod types::impl Capacity::pub const fn get(self) -> u64
+mod types::impl Capacity::pub const fn new(tokens: u64) -> Result<Self, QuotaError>
+mod types::impl RatePerSec::pub const fn get(self) -> u64
+mod types::impl RatePerSec::pub const fn new(tokens_per_sec: u64) -> Result<Self, QuotaError>
+mod types::impl Remaining::pub const fn get(self) -> u64
+mod types::impl Remaining::pub const fn new(tokens: u64) -> Self
+pub use bucket::{TokenBucket, TokenBucketQuota}
+pub use error::QuotaError
+pub use types::{Capacity, Decision, RatePerSec, Remaining}

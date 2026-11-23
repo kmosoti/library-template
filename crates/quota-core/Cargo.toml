@@ -1,0 +1,17 @@
+[package]
+name = "quota-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Deterministic no_std token-bucket quota core with integer nanosecond refill"
+categories = ["no-std", "algorithms"]
+keywords = ["rate-limit", "quota", "token-bucket", "no-std"]
+
+[lib]
+path = "src/lib.rs"
+
+[lints]
+workspace = true

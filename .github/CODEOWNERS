@@ -1,0 +1,12 @@
+# CODEOWNERS configuration (opt-in via `cargo xtask github-setup <OWNER/REPO> --require-codeowners`)
+#
+# Fresh solo/template clones leave code-owner enforcement disabled by default so
+# pull requests do not reference non-existent organization teams.
+#
+# When enabling `--require-codeowners` for a team repository, uncomment and
+# replace `<your-org>/<your-team>` or `@<your-handle>` below:
+#
+# * @<your-org>/<your-team>
+# /api/ @<your-org>/<your-team>
+# /crates/quota-core/ @<your-org>/<your-team>
+# /.github/ @<your-org>/<your-team>

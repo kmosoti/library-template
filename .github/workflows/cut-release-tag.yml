@@ -1,0 +1,99 @@
+name: Cut Release Tag (Admin Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "SemVer tag to create (e.g. v0.1.0 or v0.2.0-rc.1)"
+        required: true
+        type: string
+      target_ref:
+        description: "Branch ref or commit SHA on main or release/X.Y (e.g. refs/heads/main)"
+        required: false
+        default: "refs/heads/main"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify-candidate:
+    name: verify-candidate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      verified_sha: ${{ steps.resolve.outputs.verified_sha }}
+      tag_name: ${{ steps.resolve.outputs.tag_name }}
+    steps:
+      - name: Checkout repository without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve exact 40-hex candidate SHA and detach HEAD
+        id: resolve
+        env:
+          TAG_NAME: ${{ inputs.tag }}
+          TARGET_REF: ${{ inputs.target_ref }}
+        run: |
+          git fetch origin "+refs/heads/main:refs/remotes/origin/main" "+refs/heads/release/*:refs/remotes/origin/release/*"
+          TARGET_SHA="$(git rev-parse --verify "${TARGET_REF}^{commit}")"
+          case "${TARGET_SHA}" in
+            [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*)
+              test "${#TARGET_SHA}" -eq 40
+              ;;
+            *)
+              echo "invalid resolved SHA: ${TARGET_SHA}" >&2
+              exit 1
+              ;;
+          esac
+          git checkout --detach "${TARGET_SHA}"
+          echo "verified_sha=${TARGET_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "tag_name=${TAG_NAME}" >> "${GITHUB_OUTPUT}"
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
+        with:
+          toolchain: "1.100.0"
+          components: rustfmt, clippy
+          targets: thumbv7em-none-eabi
+
+      - name: Restore Cargo cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+
+      - name: Verify release lineage, full contract gates, tag preflight, and package
+        env:
+          TAG_NAME: ${{ steps.resolve.outputs.tag_name }}
+        run: |
+          cargo xtask check-release-lineage --tag "${TAG_NAME}"
+          cargo xtask verify --force
+          cargo xtask preflight-tag "${TAG_NAME}"
+          cargo xtask package --out dist
+
+  create-release-tag:
+    name: create-release-tag
+    needs:
+      - verify-candidate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: tag-release
+    permissions:
+      contents: read
+    steps:
+      - name: Create immutable SemVer tag ref via GitHub REST API only
+        env:
+          GH_TOKEN: ${{ secrets.TAG_CREATOR_TOKEN }}
+          VERIFIED_SHA: ${{ needs.verify-candidate.outputs.verified_sha }}
+          TAG_NAME: ${{ needs.verify-candidate.outputs.tag_name }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "TAG_CREATOR_TOKEN secret is not configured in the tag-release Environment; refusing fallback to GITHUB_TOKEN (or push a signed tag locally as Repository Admin: git tag -s ${TAG_NAME} ${VERIFIED_SHA} && git push origin ${TAG_NAME})" >&2
+            exit 1
+          fi
+          test "${#VERIFIED_SHA}" -eq 40
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f "ref=refs/tags/${TAG_NAME}" \
+            -f "sha=${VERIFIED_SHA}"

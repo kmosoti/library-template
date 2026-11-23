@@ -1,0 +1,11 @@
+{
+  "name": "library-template-workspace",
+  "displayName": "Library Template Workspace",
+  "version": "0.1.0",
+  "description": "Workspace-level Antigravity guardrails, SemVer API skills, and rules for library-template",
+  "suggestedPrompts": [
+    "Run cargo xtask verify and inspect the public API surface ratchet",
+    "Add a black-box contract test in crates/quota-core/tests/contract_suite.rs",
+    "Preflight release tag v0.1.0 and verify maintenance lineage"
+  ]
+}

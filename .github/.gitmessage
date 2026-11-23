@@ -1,0 +1,11 @@
+# <type>(<scope>): <concise summary in imperative mood>
+#
+# Explain *why* this change is necessary and how it preserves `#![no_std]`,
+# SemVer surface stability (`api/quota-core.api`), and checked arithmetic.
+#
+# Strict 2-commit separation: NEVER mix `crates/*/src/` edits with verifier/governance
+# files (`crates/*/tests/`, `api/`, `xtask/`, `.github/`) in the same commit.
+# Commit verifier changes FIRST with the git trailer below, then commit `src/` changes.
+#
+# Refs: D-0001
+# Trust-Boundary: verifier

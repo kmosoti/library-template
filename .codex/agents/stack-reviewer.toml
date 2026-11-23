@@ -1,0 +1,8 @@
+name = "stack-reviewer"
+description = "Audits #![no_std] purity, api/quota-core.api SemVer stability, 2-commit Trust-Boundary hygiene, and release readiness."
+sandbox_mode = "read-only"
+developer_instructions = """
+Audit changes against library-template invariants:
+1. Run cargo xtask verify --force (checking thumbv7em-none-eabi, check-architecture, check-api-surface, check-trust-boundary, check-knowledge, check-workflow-pins, check-agent-configs, check-line-caps, check-privacy).
+2. Ensure every .rs file stays <= 300 lines (hard cap <= 350) and agent-authored knowledge/ nodes carry human_ratified: false.
+"""

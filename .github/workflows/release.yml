@@ -1,0 +1,166 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-attest:
+    name: build-and-attest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout tagged commit without persisting credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch main and release maintenance lineages
+        run: |
+          git fetch origin "+refs/heads/main:refs/remotes/origin/main" "+refs/heads/release/*:refs/remotes/origin/release/*"
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
+        with:
+          toolchain: "1.100.0"
+          components: rustfmt, clippy
+          targets: thumbv7em-none-eabi
+
+      - name: Restore Cargo cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+
+      - name: Verify exact commit lineage on main or matching release/X.Y
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: cargo xtask check-release-lineage --tag "${TAG_NAME}"
+
+      - name: Run full contract verification
+        run: cargo xtask verify --force
+
+      - name: Preflight SemVer tag and release notes
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: cargo xtask preflight-tag "${TAG_NAME}"
+
+      - name: Package and consumer-verify reproducible release bundle
+        run: cargo xtask package --out dist
+
+      - name: Attest SLSA build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/quota-core-*.tar.gz
+            dist/RELEASE-EVIDENCE.json
+            dist/SHA256SUMS
+
+      - name: Upload release distribution artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-dist
+          path: |
+            dist/quota-core-*.tar.gz
+            dist/RELEASE-EVIDENCE.json
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+  publish-prerelease:
+    name: publish-prerelease
+    needs: build-and-attest
+    if: contains(github.ref_name, '-alpha.') || contains(github.ref_name, '-beta.') || contains(github.ref_name, '-rc.')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release notes read-only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download attested artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-dist
+          path: dist
+
+      - name: Publish pre-release via draft-first immutable flow or idempotent digest match
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if gh release view "${TAG_NAME}" --json isDraft,assets > existing-rel.json 2>/dev/null; then
+            test "$(jq -r '.isDraft' existing-rel.json)" = "false"
+            test "$(jq -r '.assets | length' existing-rel.json)" = "3"
+            mkdir -p existing-dist
+            gh release download "${TAG_NAME}" --dir existing-dist
+            cmp -s dist/SHA256SUMS existing-dist/SHA256SUMS
+            (cd existing-dist && sha256sum -c SHA256SUMS)
+            echo "[idempotent] pre-release ${TAG_NAME} already published with identical digests"
+            exit 0
+          fi
+          gh release create "${TAG_NAME}" \
+            dist/quota-core-*.tar.gz \
+            dist/RELEASE-EVIDENCE.json \
+            dist/SHA256SUMS \
+            --draft \
+            --prerelease \
+            --verify-tag \
+            --title "${TAG_NAME}" \
+            --notes-file "docs/releases/${TAG_NAME}.md"
+          test "$(gh release view "${TAG_NAME}" --json assets --jq '.assets | length')" = "3"
+          gh release edit "${TAG_NAME}" --draft=false
+
+  publish-stable:
+    name: publish-stable
+    needs: build-and-attest
+    if: "!contains(github.ref_name, '-alpha.') && !contains(github.ref_name, '-beta.') && !contains(github.ref_name, '-rc.')"
+    runs-on: ubuntu-latest
+    environment: stable-publish
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release notes read-only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download attested artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-dist
+          path: dist
+
+      - name: Publish stable release via draft-first immutable flow or idempotent digest match
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          if gh release view "${TAG_NAME}" --json isDraft,assets > existing-rel.json 2>/dev/null; then
+            test "$(jq -r '.isDraft' existing-rel.json)" = "false"
+            test "$(jq -r '.assets | length' existing-rel.json)" = "3"
+            mkdir -p existing-dist
+            gh release download "${TAG_NAME}" --dir existing-dist
+            cmp -s dist/SHA256SUMS existing-dist/SHA256SUMS
+            (cd existing-dist && sha256sum -c SHA256SUMS)
+            echo "[idempotent] stable release ${TAG_NAME} already published with identical digests"
+            exit 0
+          fi
+          gh release create "${TAG_NAME}" \
+            dist/quota-core-*.tar.gz \
+            dist/RELEASE-EVIDENCE.json \
+            dist/SHA256SUMS \
+            --draft \
+            --verify-tag \
+            --title "${TAG_NAME}" \
+            --notes-file "docs/releases/${TAG_NAME}.md"
+          test "$(gh release view "${TAG_NAME}" --json assets --jq '.assets | length')" = "3"
+          gh release edit "${TAG_NAME}" --draft=false

@@ -1,0 +1,26 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/quota-core",
+    "crates/quota-adapters",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100.0"
+license = "MIT OR Apache-2.0"
+authors = ["Kennedy Mosoti"]
+repository = "https://github.com/example/library-template"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.dependencies]
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+quota-core = { path = "crates/quota-core", version = "0.1.0", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+tar = { version = "0.4", default-features = false }

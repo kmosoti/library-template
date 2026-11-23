@@ -1,0 +1,20 @@
+[package]
+name = "quota-adapters"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Serde JSON wire boundary adapters for quota-core"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+quota-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
